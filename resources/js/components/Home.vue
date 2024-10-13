@@ -71,6 +71,12 @@
                                                 {{ option.name }}
                                             </option>
                                         </select>
+                                        <small
+                                            v-if="errors && errors.voiceName"
+                                            class="text-danger mt-2"
+                                        >
+                                            {{ errors.voiceName[0] }}
+                                        </small>
                                     </div>
                                     <div class="col-12 mb-3">
                                         <label
@@ -88,12 +94,40 @@
                                             v-model="formData.speakingRate"
                                         />
                                     </div>
+                                    <div class="col-12 mb-3">
+                                        <label
+                                            for="fileInput"
+                                            class="form-label"
+                                            >Upload Image</label
+                                        >
+                                        <input
+                                            type="file"
+                                            class="form-control"
+                                            id="fileInput"
+                                            accept="image/*"
+                                            @change="onImageChange"
+                                        />
+                                        <small
+                                            v-if="errors && errors.image"
+                                            class="text-danger mt-2"
+                                        >
+                                            {{ errors.image[0] }}
+                                        </small>
+                                    </div>
                                 </div>
                                 <button
                                     class="w-100 btn btn-success btn"
                                     type="submit"
+                                    v-if="!isLoading"
                                 >
                                     Submit
+                                </button>
+                                <button
+                                    class="w-100 btn btn-success btn"
+                                    type="submit"
+                                    v-else
+                                >
+                                    Loading...
                                 </button>
                             </div>
                         </div>
@@ -119,10 +153,12 @@
                                             placeholder="Write your text here..."
                                             v-model="formData.text"
                                         ></textarea>
-                                        <div class="invalid-feedback">
-                                            Please enter a valid email address
-                                            for shipping updates.
-                                        </div>
+                                        <small
+                                            v-if="errors && errors.text"
+                                            class="text-danger mt-2"
+                                        >
+                                            {{ errors.text[0] }}
+                                        </small>
                                     </div>
                                 </div>
                             </div>
@@ -130,7 +166,10 @@
                     </div>
                 </div>
             </form>
-            <audio v-if="audioUrl" :src="audioUrl" controls></audio>
+            <video v-if="resultUrl" width="600" controls>
+                <source :src="resultUrl" type="video/mp4" />
+                Your browser does not support the video tag.
+            </video>
         </main>
     </div>
 </template>
@@ -140,20 +179,20 @@ export default {
     name: "Home",
     data() {
         return {
-            audioUrl: "",
+            resultUrl: "",
             formData: {
                 text: "",
                 voiceGender: "MALE",
                 speakingRate: 1,
-                audioUrl: "",
                 voiceName: "",
             },
+            selectedImage: null,
             voiceOptions: [],
             voiceGenderOptions: [
                 { value: "MALE", text: "Male" },
                 { value: "FEMALE", text: "Female" },
             ],
-
+            isLoading: false,
             // Instead of get API
             dataVoice: [
                 {
@@ -217,33 +256,54 @@ export default {
                     naturalSampleRateHertz: 24000,
                 },
             ],
+            errors: null,
         };
     },
     created() {
         this.fetchVoiceOptions();
     },
     methods: {
+        onImageChange(event) {
+            const file = event.target.files[0];
+            if (file) {
+                this.selectedImage = file;
+            }
+        },
         fetchVoiceOptions() {
             this.formData.voiceName = "";
             this.voiceOptions = this.dataVoice.filter(
                 (option) => option.ssmlGender === this.formData.voiceGender
             );
         },
-        async synthesizeSpeech() {
-            try {
-                const response = await axios.post(
-                    "/speak",
-                    this.formData,
-                    {
-                        responseType: "blob",
-                    }
-                );
 
-                // Create a URL for the audio blob
-                const audioBlob = new Blob([response.data], {
-                    type: "audio/mpeg",
+        async synthesizeSpeech() {
+            this.isLoading = true;
+            const formData = new FormData();
+            formData.append("text", this.formData.text);
+            formData.append("languageCode", "vi-VN");
+            formData.append("voiceGender", "MALE");
+            formData.append("speakingRate", this.formData.speakingRate);
+            formData.append("voiceName", this.formData.voiceName);
+            if (this.selectedImage) {
+                formData.append("image", this.selectedImage);
+            }
+            try {
+                const response = await axios.post("/generate", formData, {
+                    headers: {
+                        "Content-Type": "multipart/form-data",
+                    },
                 });
-                this.audioUrl = URL.createObjectURL(audioBlob);
+                this.resultUrl = response?.data?.result_url;
+                this.isLoading = false;
+            } catch (error) {
+                this.isLoading = false;
+                this.errors = error?.response?.data?.errors;
+            }
+        },
+
+        async getTalks() {
+            try {
+                const response = await axios.get("/get-talks");
             } catch (error) {
                 console.error("Error synthesizing speech:", error);
             }

@@ -1,7 +1,8 @@
 <?php
 
+use App\Http\Controllers\CombinedController;
 use App\Http\Controllers\LayoutController;
-use App\Http\Controllers\TextToSpeechController;
+use App\Http\Controllers\TalkController;
 use Illuminate\Support\Facades\Route;
 
 /*
@@ -17,5 +18,5 @@ use Illuminate\Support\Facades\Route;
 
 Route::get('/', [LayoutController::class, 'init']);
 
-
-Route::post('/speak', [TextToSpeechController::class, 'speak']);
+Route::post('/generate', [CombinedController::class, 'generateSpeechAndSync']);
+Route::get('/get-talks', [TalkController::class, 'getTalk']);
